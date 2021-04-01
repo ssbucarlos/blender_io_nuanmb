@@ -515,13 +515,12 @@ def importCamera(context):
                     #TODO: Blender doesn't allow keyframing FOV directly,
                     # need to figure out conversion between smash FOV
                     # and convert that to Sensor Width and Focal Length
-                    """
                     for anim_frame in track.animations:
-                        cam.keyframe_insert(data_path = 'angle',
+                        cam["FOV"] = anim_frame
+                        cam.keyframe_insert(data_path = '["FOV"]',
                                             frame = blender_frame,
                                             group = AnimName)
                         blender_frame += 1
-                    """
                     
             
     

@@ -125,7 +125,7 @@ class Quantanizer:
         
     def quantanization_value(bitcount):
         v = 0
-        for i in range(0, bitcount)
+        for i in range(0, bitcount):
             v |= 1 << i
         return v
         
@@ -149,6 +149,7 @@ class Quantanizer:
 
     def decompressed_value(self, v, bits):        
         #pick up here tomorrow
+        placeholder = 0
     
     def de_nan_array(va):
         for v in va:
@@ -286,15 +287,15 @@ def write_nuanmb(f, animBuffer, groups, finalFrameIndex, animName):
     write_rel_offset(f, bufferOffset)
     write_byte_array(f, animBuffer)
     
-def make_anim_buffer(context, groups):
+def make_anim_buffer(context, groups, compression):
     b = io.BytesIO()
     for g in groups:
         for node in g.nodes:
             if node.materialSubNodes: #Material or Camera
                 for sn in node.materialSubNodes:
-                    write_track_from_nat(b, sn.nodeAnimTrack)
+                    write_track_from_nat(b, sn.nodeAnimTrack, compression)
             else: #Normal
-                write_track_from_nat(b, node.nodeAnimTrack)
+                write_track_from_nat(b, node.nodeAnimTrack, compression)
     return b
 
 def write_uncompressed_tranform(b, nat):
@@ -321,7 +322,7 @@ def write_uncompressed_tranform(b, nat):
 def all_same(nat):
     allSame = True
     first = nat.animationTrack[0]
-    for af in nat.animationTrack
+    for af in nat.animationTrack:
         if first != af:
             allSame = False
             break
@@ -397,23 +398,25 @@ def write_compressed_transform(b, nat):
     bit_string = ""
 
 
-
+"""
 def write_transform(b, nat):
     if all_same(nat):
         write_const_transform(b, nat)
     else:
         write_compressed_transform(b, nat)
+"""
     
-def write_track_from_nat(b, nat):
+def write_track_from_nat(b, nat, compression):
     nat.dataOffset = b.tell()
     nat.frameCount = len(nat.animationTrack)
     
-    #get flags and then write direct, will pick up here tomorrow
     if ((nat.flags & 0x00ff) == AnimTrackFlags.Transform.value):
         if all_same(nat):
             write_const_transform(b, nat)
-        else:
+        elif compression:
             write_compressed_transform(b, nat)
+        else:
+            write_uncompressed_tranform(b, nat)
             
     elif ((nat.flags & 0x00ff) == AnimTrackFlags.Float.value):
         for af in nat.animationTrack:
@@ -505,7 +508,7 @@ def gather_camera_groups(context):
     cnat.type = "FieldOfView"
     for f in range(sce.frame_start, sce.frame_end):
         sce.frame_set(f)
-        cnat.animationTrack.append(.56964) #Todo: Figure out FOV conversion, dont hardcode this value
+        cnat.animationTrack.append(c["FOV"]) #Todo: Figure out FOV conversion, dont hardcode this value
     csnFieldOfView.nodeAnimTrack = cnat
     
     #NearClip seems to be the same value in all investigated tracks
@@ -645,7 +648,7 @@ def gather_groups(context):
     
     return groups
     
-def export_nuanmb_main(context, filepath):
+def export_nuanmb_main(context, filepath, compression):
  
     print(str(filepath))
     fileName = os.path.basename(filepath)
@@ -657,7 +660,7 @@ def export_nuanmb_main(context, filepath):
     else:
         groups = gather_groups(context)
     
-    animBuffer = make_anim_buffer(context, groups)
+    animBuffer = make_anim_buffer(context, groups, compression)
     
     s = bpy.context.scene
     finalFrameIndex = s.frame_end - s.frame_start - 1
@@ -691,10 +694,10 @@ class ExportSomeData(Operator, ExportHelper):
 
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
-    use_setting: BoolProperty(
-        name="Example Boolean",
-        description="Example Tooltip",
-        default=True,
+    compression: BoolProperty(
+        name="Enable Compression",
+        description="(not working, dont enable lol)",
+        default=False,
     )
 
     type: EnumProperty(
@@ -708,7 +711,7 @@ class ExportSomeData(Operator, ExportHelper):
     )
 
     def execute(self, context):
-        return export_nuanmb_main(context, self.filepath)
+        return export_nuanmb_main(context, self.filepath, self.compression)
 
 
 # Only needed if you want to add into a dynamic menu
