@@ -27,7 +27,7 @@ Or if u want to make simple camera track edits.
 # Current Use Case
 1. Custom Camera Tracks
 2. Adding bone scaling to an animation.
-3. Avoid Quaternion-rotation StudioSB Export Issue 
+3. Avoid quaternion-rotation StudioSB Export Issue 
 4. Exporting mesh visibility
 
 # Current Limitations
