@@ -8,7 +8,7 @@ Or if u want to make simple camera track edits.
 1. The model.numdlb importer script (pls only install the .NUMDLB character MODEL importer) https://gitlab.com/Worldblender/io_scene_numdlb
 
 # How to use
-Camera Tracks:
+##Camera Tracks:
 1. Uninstall existing .nuanmb importer if it isn't this one.
 2. Install the included modified .nuanmb importer
 3. Select the blender camera in the viewport.
@@ -16,7 +16,7 @@ Camera Tracks:
 5. Make your modifications 
 6. Export -> .nuanmb
 
-Character Tracks:
+##Character Tracks:
 0. Uninstall existing .nuanmb importer if it isn't this one.
 1. First import the character model using the .numdlb import script (The download page for it has instructions if ur unsure how to use it)
 2. Select the model's armature
