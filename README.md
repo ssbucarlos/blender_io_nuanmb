@@ -5,16 +5,16 @@ Early alpha release so that people who want to avoid the Quaternion-Rotation bug
 Or if u want to make simple camera track edits.
 
 # PreRequisites
-1.) The model.numdlb importer script (pls only install the .NUMDLB character MODEL importer) https://gitlab.com/Worldblender/io_scene_numdlb
+1. The model.numdlb importer script (pls only install the .NUMDLB character MODEL importer) https://gitlab.com/Worldblender/io_scene_numdlb
 
 # How to use
 Camera Tracks:
-1.) Uninstall existing .nuanmb importer if it isn't this one.
-2.) Install the included modified .nuanmb importer
-3.) Select the blender camera in the viewport.
-4.) Import -> .nuanmb -> Find the camera animation
-5.) Make your modifications 
-6.) Export -> .nuanmb
+1. Uninstall existing .nuanmb importer if it isn't this one.
+2. Install the included modified .nuanmb importer
+3. Select the blender camera in the viewport.
+4. Import -> .nuanmb -> Find the camera animation
+5. Make your modifications 
+6. Export -> .nuanmb
 
 Character Tracks:
 0.) Uninstall existing .nuanmb importer if it isn't this one.
