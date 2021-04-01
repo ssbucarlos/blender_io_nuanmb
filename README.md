@@ -18,11 +18,12 @@ Or if u want to make simple camera track edits.
 
 ## Character Tracks:
 0. Uninstall existing .nuanmb importer if it isn't this one.
-1. First import the character model using the .numdlb import script (The download page for it has instructions if ur unsure how to use it)
-2. Select the model's armature
-3. Import -> .nuanmb -> find the character animation
-4. Make your modifications
-5. Export -> .nuanmb
+1. Install the included modified .nuanmb importer
+2. First import the character model using the .numdlb import script (The download page for it has instructions if ur unsure how to use it)
+3. Select the model's armature
+4. Import -> .nuanmb -> find the character animation
+5. Make your modifications
+6. Export -> .nuanmb
 
 # Current Use Case
 1. Custom Camera Tracks
