@@ -564,7 +564,7 @@ def gather_groups(context):
                 r = b.matrix.to_quaternion()
                 if f != sce.frame_start: 
                     if pfq.dot(r) < 0:
-                        r.conjugate()  #fix for quaternion interpolation
+                        r.negate()  #fix for quaternion interpolation
                 s = b.matrix.to_scale()
                 nat.animationTrack.append([ [s[0], s[1], s[2], 1],
                                             [r[1], r[2], r[3], r[0]],
@@ -577,7 +577,7 @@ def gather_groups(context):
                 r = rm.to_quaternion()
                 if f != sce.frame_start:
                     if pfq.dot(r) < 0:
-                        r.conjugate()
+                        r.negate()
                 s = rm.to_scale()
                 nat.animationTrack.append([ [s[0], s[1], s[2], 1],
                                             [r[1], r[2], r[3], r[0]],
