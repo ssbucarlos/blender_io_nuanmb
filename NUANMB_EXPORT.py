@@ -556,24 +556,33 @@ def gather_groups(context):
         nat = tn.nodeAnimTrack
         nat.flags |= AnimTrackFlags.Transform.value
         nat.type = "Transform"
+        pfq = 0 # Previous Frame Quaternion
         for f in range(sce.frame_start, sce.frame_end):
             sce.frame_set(f)
             if not b.parent:
                 t = b.matrix.to_translation()
                 r = b.matrix.to_quaternion()
+                if f != sce.frame_start: 
+                    if pfq.dot(r) < 0:
+                        r.conjugate()  #fix for quaternion interpolation
                 s = b.matrix.to_scale()
                 nat.animationTrack.append([ [s[0], s[1], s[2], 1],
                                             [r[1], r[2], r[3], r[0]],
                                             [t[0], t[1], t[2], 1] ])
+                pfq = r.copy()
             else:
                 pmi = b.parent.matrix.inverted()
                 rm = pmi @ b.matrix #"Relative Matrix", might rename this later
                 t = rm.to_translation()
                 r = rm.to_quaternion()
+                if f != sce.frame_start:
+                    if pfq.dot(r) < 0:
+                        r.conjugate()
                 s = rm.to_scale()
                 nat.animationTrack.append([ [s[0], s[1], s[2], 1],
                                             [r[1], r[2], r[3], r[0]],
                                             [t[0], t[1], t[2], 1] ])
+                pfq = r.copy()
         tn.nodeAnimTrack = nat
         tg.nodes.append(tn)
     tg.nodes.sort(key = lambda node: node.name)
