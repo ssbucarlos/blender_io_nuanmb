@@ -30,13 +30,13 @@ Or if u want to make simple camera track edits.
 2. Adding bone scaling to an animation.
 3. Avoid quaternion-rotation StudioSB Export Issue 
 4. Exporting mesh visibility
+5. Correctly preview and modify animations with scaling
 
 # Current Limitations
 1. No compression (Currently working on this for 1.0 release)
 2. Material Track Keyframes not properly imported
 3. Camera Track FOV can't be properly keyframed
 4. Camera Track FOV preview is only approximately correct if u dont change it
-5. Importing an animation with existing scaling previews the animation correctly, but does not export that same animation correctly.
 
 # Credits
 1. Carlos 
