@@ -27,10 +27,10 @@ Or if u want to make simple camera track edits.
 
 # Current Use Case
 1. Custom Camera Tracks
-2. Adding bone scaling to an animation.
 3. Avoid quaternion-rotation StudioSB Export Issue 
-4. Exporting mesh visibility
+4. Easier VIS Mesh visibility editing
 5. Correctly preview and modify animations with scaling
+6. Preview animations with helper bone influence
 
 # Current Limitations
 1. No compression (Currently working on this for 1.0 release)
