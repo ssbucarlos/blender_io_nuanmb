@@ -548,8 +548,16 @@ def importCamera(context):
     render.fps            = 60
     
           
-
-
+def keyframe_insert_locrotscale(obj, boneName, frame, groupName):
+    obj.keyframe_insert(data_path = 'pose.bones["%s"].%s' % (boneName, 'location'),
+                        frame = frame,
+                        group = groupName)
+    obj.keyframe_insert(data_path = 'pose.bones["%s"].%s' % (boneName, 'rotation_quaternion'),
+                        frame = frame,
+                        group = groupName)
+    obj.keyframe_insert(data_path = 'pose.bones["%s"].%s' % (boneName, 'scale'),
+                        frame = frame,
+                        group = groupName)                        
 
 # This function deals with all of the Blender-specific operations
 def importAnimations(context, read_transform, read_material, read_visibility, read_camera):
@@ -617,8 +625,36 @@ def importAnimations(context, read_transform, read_material, read_visibility, re
                         # print(tbone.name + " | Animation matrix: " + str(tfmArray[tbone.name].transposed()))
                         if (tbone.parent):
                             tbone.matrix = tbone.parent.matrix @ tfmArray[tbone.name]
+                            #Naive Helper Bone Fixes, will be replaced once they are better understood
+                            if tbone.name == 'ShoulderL':
+                                match = next((x for x in ['H_SholderL', 'H_ShoulderL'] if x in obj.pose.bones.keys()), False)
+                                if match: #FoundHelperBone
+                                    hb = obj.pose.bones[match]
+                                    hb.matrix = tbone.parent.matrix @ tfmArray[tbone.name]
+                                    keyframe_insert_locrotscale(obj, hb.name, frame + 1, AnimName)
+                            if tbone.name == 'ArmL':
+                                match = next((x for x in ['H_ElbowL'] if x in obj.pose.bones.keys()), False)
+                                if match: #FoundHelperBone
+                                    hb = obj.pose.bones[match]
+                                    hb.matrix = tbone.parent.matrix @ tfmArray[tbone.name]
+                                    keyframe_insert_locrotscale(obj, hb.name, frame + 1, AnimName)
+                            if tbone.name == 'ShoulderR':
+                                match = next((x for x in ['H_SholderR', 'H_ShoulderR'] if x in obj.pose.bones.keys()), False)
+                                if match: #FoundHelperBone
+                                    hb = obj.pose.bones[match]
+                                    hb.matrix = tbone.parent.matrix @ tfmArray[tbone.name]
+                                    keyframe_insert_locrotscale(obj, hb.name, frame + 1, AnimName)
+                            if tbone.name == 'ArmR':
+                                match = next((x for x in ['H_ElbowR'] if x in obj.pose.bones.keys()), False)
+                                if match: #FoundHelperBone
+                                    hb = obj.pose.bones[match]
+                                    hb.matrix = tbone.parent.matrix @ tfmArray[tbone.name]
+                                    keyframe_insert_locrotscale(obj, hb.name, frame + 1, AnimName)                                    
+                                    
+                                    
                         else:
                             tbone.matrix = tfmArray[tbone.name]
+                            
    
                         # First, add the position keyframes
                         try:
