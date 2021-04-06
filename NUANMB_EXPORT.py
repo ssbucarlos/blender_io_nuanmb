@@ -8,7 +8,7 @@ bl_info = {
     "location": "File > Export",
     "category": "Import-Export"}
     
-import bpy, enum, io, math, mathutils, os, struct, time
+import bpy, enum, io, math, mathutils, os, struct, time, numpy
 
 
 class AnimType(enum.Enum):
@@ -67,6 +67,10 @@ def write_chars(f, chars):
 
 def write_byte_array(f, ba):
     f.write(ba.getbuffer())
+    
+def write_bytes(f, bytes):
+    for byte in bytes:
+        write_byte(f, byte)
 
 #Some longs contain an offset to data, but that offset isn't the absolute file offset its  
 # relative to that long's position in the file/buffer.
@@ -117,44 +121,88 @@ class NodeAnimTrack:
 class Quantanizer:
     def __init__(self, valueArray, epsilon):
         de_nan_array(valueArray)
-        self.values = valueArray
+        #self.values = valueArray
         self.min = min(valueArray)
         self.max = max(valueArray)
+        if math.isclose(self.min, 1, rel_tol=1e-04):
+            self.min = 1
+        if math.isclose(self.max, 1, rel_tol=1e-04):
+            self.max = 1
+        if math.isclose(self.min, 0, abs_tol=1e-04):
+            self.min = 0
+        if math.isclose(self.max, 0, abs_tol=1e-04):
+            self.max = 0
+        if math.isclose(self.min, self.max, rel_tol=1e-04):
+            self.min = self.max
         self.constant = self.min == self.max
-        self.bitCount = calc_bit_count(epsilon)
+        self.bitCount = self.calc_bit_count(epsilon, valueArray)
         
-    def quantanization_value(bitcount):
-        v = 0
-        for i in range(0, bitcount):
-            v |= 1 << i
-        return v
+    def __repr__(self):
+        return "min: " + str(self.min) + " max: " + str(self.max) + " constant: " + str(self.constant)  + " bitCount: " + str(self.bitCount) + "\t"
         
-    def calc_bit_count(self, epsilon):
+    def calc_bit_count(self, epsilon, valueArray):
         if self.constant:
             return 0
         while epsilon < 1:
             for bits in range(1, 31):
-                if compute_error(bits) < epsilon:
+                if self.compute_error(bits, valueArray) < epsilon:
                     return bits
             epsilon *= 2
-        return 31 #Failed to find an optimal bit count. idk if this ever happens
+        return -1 #Failed to find an optimal bit count. idk if this ever happens
         
-    def compute_error(self, bits):
+    def compute_error(self, bits, valueArray):
         e = 0
         if self.constant:
             return 0
-        for v in self.values:
-            e = math.max(e, v - decompressed_value(v, bits))
+        for v in valueArray:
+            ce = abs(v - self.decompressed_value(v,bits))
+            e = max(e, ce)
         return e 
 
-    def decompressed_value(self, v, bits):        
-        #pick up here tomorrow
-        placeholder = 0
+    def decompressed_value(self, v, bits): 
+        qv = quantanization_value(bits)    
+        if qv == 0:
+            return 0
+               
+        dv = lerp(self.min, self.max, 0, 1, self.quantanize(v, bits) / quantanization_value(bits))
+        return dv if not math.isnan(dv) else 0 #I dont think python generates NaNs like in C#
+        
+    def quantanize(self, v, bits):
+        if v <= self.min:
+            return 0
+        
+        if v >= self.max:
+            return quantanization_value(bits)
+        
+        #Quantanized value, which is supposed to be an integer    
+        quantanized = (v - self.min) / (self.max - self.min) * quantanization_value(bits)
+        quantanized = math.trunc(quantanized)
+        return quantanized
+   
     
-    def de_nan_array(va):
-        for v in va:
-            if math.isnan(v):
-                v = 0.0    
+def quantanization_value(bitCount):
+    v = 0
+    for i in range(0, bitCount):
+        v |= 1 << i
+    return v
+        
+def lerp(av, bv, v0, v1, t): #idk whats going on in here tbh tbh
+    if v0 == v1:
+        return av
+    if t == v0:
+        return av
+    if t == v1:
+        return bv    
+    mu = (t - v0) / (v1 - v0)
+    val = ( (av * (1 - mu)) + (bv * mu))
+    return val if not math.isnan(val) else 0
+        
+def de_nan_array(va):
+    for v in va:
+        if math.isnan(v):
+            print("NaN")
+            v = 0.0    
+
 
 def material_group_hacks(f, g):
     pad(f, 0x8) #8-byte alignment for arrays
@@ -344,43 +392,105 @@ def write_const_transform(b, nat):
     nat.flags |= AnimTrackFlags.ConstTransform.value
     
 def write_compressed_transform(b, nat):
-    #preprocess
+    
+    nat.flags |= AnimTrackFlags.Compressed.value
+    
+    epsilon = 0.000002 # Maybe allow this to be set by user, but might just be confusing.
+    
+    #Make the 'Animation Track' into a numpy array for vertical slicing
+    at = numpy.array(nat.animationTrack) 
+      
+    sx = Quantanizer(at[:, 0, 0], epsilon)
+    sy = Quantanizer(at[:, 0, 1], epsilon)
+    sz = Quantanizer(at[:, 0, 2], epsilon)
+    rx = Quantanizer(at[:, 1, 0], epsilon)
+    ry = Quantanizer(at[:, 1, 1], epsilon)
+    rz = Quantanizer(at[:, 1, 2], epsilon)
+    px = Quantanizer(at[:, 2, 0], epsilon)
+    py = Quantanizer(at[:, 2, 1], epsilon)
+    pz = Quantanizer(at[:, 2, 2], epsilon)
+    
+    hasScale = not (sx.constant and sy.constant and sz.constant)
+    hasRotation = not (rx.constant and ry.constant and rz.constant)
+    hasPosition = not (px.constant and py.constant and pz.constant)
+    
+    """
+    print("nat.name = " + str(nat.name))
+    print("sx:" + str(sx) + "\t sy:" + str(sy) + "\t sz:" + str(sz) + 
+        "\t rx:" + str(rx) + "\t ry:" + str(ry) + "\t rz:" + str(rz) +
+        "\t px:" + str(px) + "\t py:" + str(py) + "\t pz:" + str(pz) )
+    
+    print("sx = {" + str(at[:,0,0]) + "}\n")
+    """
+    
+    #print("rx = {" + str(at[:,1,0]) + "}\n")
+    
+    
     cFlags = 0 #Compression Flags
+    bitsPerEntry = 0
+    
+    if sx.bitCount == -1 or sy.bitCount == -1 or sz.bitCount == -1 \
+    or rx.bitCount == -1 or ry.bitCount == -1 or rz.bitCount == -1 \
+    or px.bitCount == -1 or py.bitCount == -1 or pz.bitCount == -1:
+        print("Compression Level too small to compress")
+        return
+    
+    if hasScale:
+        cFlags |= 0x01
+        bitsPerEntry += sx.bitCount if not sx.constant else 0
+        bitsPerEntry += sy.bitCount if not sy.constant else 0
+        bitsPerEntry += sz.bitCount if not sz.constant else 0
+    else:
+        cFlags |= 0x02
+    
+    if hasRotation:
+        cFlags |= 0x04
+        bitsPerEntry += rx.bitCount if not rx.constant else 0
+        bitsPerEntry += ry.bitCount if not ry.constant else 0
+        bitsPerEntry += rz.bitCount if not rz.constant else 0
+        bitsPerEntry += 1 #The 1 is for extra W rotation bit 
+    
+    if hasPosition:
+        cFlags |= 0x08
+        bitsPerEntry += px.bitCount if not px.constant else 0
+        bitsPerEntry += py.bitCount if not py.constant else 0
+        bitsPerEntry += pz.bitCount if not pz.constant else 0
+    
     
     #Compressed Header
     write_short(b, 0x04)
     write_short(b, cFlags)
     write_short(b, 160) #Not Hex in StudioSB
     write_ushort(b, bitsPerEntry)
-    wrinte_int(b, 204)
-    write_int(b, values.count)
+    write_int(b, 204) #Not Hex in StudioSB
+    write_int(b, len(nat.animationTrack))
     write_float(b, sx.min)
     write_float(b, sx.max)
-    write_long64(b, sx.get_bit_count() if hasScale else 16)
+    write_long64(b, sx.bitCount if hasScale else 16)
     write_float(b, sy.min)
     write_float(b, sy.max)
-    write_long64(b, sy.get_bit_count() if hasScale else 16)
+    write_long64(b, sy.bitCount if hasScale else 16)
     write_float(b, sz.min)
     write_float(b, sz.max)
-    write_long64(b, sz.get_bit_count() if hasScale else 16)
+    write_long64(b, sz.bitCount if hasScale else 16)
     write_float(b, rx.min)
     write_float(b, rx.max)
-    write_long64(b, rx.get_bit_count() if hasScale else 16)
+    write_long64(b, rx.bitCount if hasRotation else 16)
     write_float(b, ry.min)
     write_float(b, ry.max)
-    write_long64(b, ry.get_bit_count() if hasScale else 16)
+    write_long64(b, ry.bitCount if hasRotation else 16)
     write_float(b, rz.min)
     write_float(b, rz.max)
-    write_long64(b, rz.get_bit_count() if hasScale else 16)
+    write_long64(b, rz.bitCount if hasRotation else 16)
     write_float(b, px.min)
     write_float(b, px.max)
-    write_long64(b, px.get_bit_count() if hasScale else 16)
+    write_long64(b, px.bitCount if hasPosition else 16)
     write_float(b, py.min)
     write_float(b, py.max)
-    write_long64(b, py.get_bit_count() if hasScale else 16)
+    write_long64(b, py.bitCount if hasPosition else 16)
     write_float(b, pz.min)
     write_float(b, pz.max)
-    write_long64(b, pz.get_bit_count() if hasScale else 16)
+    write_long64(b, pz.bitCount if hasPosition else 16)
     dv = nat.animationTrack[0] #Default Values
     write_float(b, dv[0][0])
     write_float(b, dv[0][1])
@@ -395,7 +505,67 @@ def write_compressed_transform(b, nat):
     write_int(b, 0)
     
     #Now we can finally write the bits
-    bit_string = ""
+    bitString = ""
+    frame = 0
+    for af in nat.animationTrack:
+        if hasScale:
+            #print("Frame: " + str(frame) + " af[0][0] = " + str(af[0][0]))
+           # print("sx.quantanize = " + str(sx.quantanize(af[0][0], sx.bitCount)) + " ")
+            bitString += get_bits(sx.quantanize(af[0][0], sx.bitCount), sx.bitCount)
+            bitString += get_bits(sy.quantanize(af[0][1], sy.bitCount), sy.bitCount)
+            bitString += get_bits(sz.quantanize(af[0][2], sz.bitCount), sz.bitCount)
+
+        if hasRotation:
+            #print("Frame: " + str(frame) + " af[1][0] = " + str(af[1][0]))
+            #print("rx.quantanize = " + str(rx.quantanize(af[1][0], rx.bitCount)) + " ")
+            bitString += get_bits(rx.quantanize(af[1][0], rx.bitCount), rx.bitCount)
+            bitString += get_bits(ry.quantanize(af[1][1], ry.bitCount), ry.bitCount)
+            bitString += get_bits(rz.quantanize(af[1][2], rz.bitCount), rz.bitCount)
+            
+        if hasPosition:
+            bitString += get_bits(px.quantanize(af[2][0], px.bitCount), px.bitCount)
+            bitString += get_bits(py.quantanize(af[2][1], py.bitCount), py.bitCount)
+            bitString += get_bits(pz.quantanize(af[2][2], pz.bitCount), pz.bitCount)
+            if not pz.constant:
+                print("Frame: " + str(frame) + ", af[2][2] = " + str(af[2][2]) + ", pz.quantize = " + str(pz.quantanize(af[2][2], pz.bitCount)) 
+                    + ",pz.bitCount =" + str(pz.bitCount) + ", bits = " + str(get_bits(pz.quantanize(af[2][2], pz.bitCount), pz.bitCount)))
+        if hasRotation:
+            #'flip-W' bit
+            w = math.sqrt(math.fabs( 1 - (
+                rx.decompressed_value(af[1][0], rx.bitCount)**2 +
+                ry.decompressed_value(af[1][1], ry.bitCount)**2 +
+                rz.decompressed_value(af[1][2], rz.bitCount)**2)))
+            fBit = 1 if (af[1][3] < 0) != (w < 0) else 0
+            bitString += get_bits(fBit, 1)
+        frame += 1
+        
+    #print("bitString Length = " + str(len(bitString)))
+    #print("bitString = " + str(bitString))
+    if bitString != "":       
+        ba = get_bytes(bitString)
+        write_bytes(b, ba)
+
+def get_bits(value, bitCount):
+    bits = ""
+    for i in range(bitCount):
+        bit = (value >> i) & 0x1
+        bits += format(bit, 'b')  
+    return bits
+
+def get_bytes(bitString):
+    ba = []
+    byte = 0
+    bitCounter = 0
+    for bit in bitString:
+        byte |= int(bit, 2) << bitCounter
+        bitCounter += 1
+        if bitCounter == 8:
+            ba.append(byte)
+            byte = 0
+            bitCounter = 0 
+    if bitCounter != 0:
+        ba.append(byte) 
+    return ba    
 
 
 """
@@ -413,6 +583,7 @@ def write_track_from_nat(b, nat, compression):
     if ((nat.flags & 0x00ff) == AnimTrackFlags.Transform.value):
         if all_same(nat):
             write_const_transform(b, nat)
+            nat.frameCount = 1
         elif compression:
             write_compressed_transform(b, nat)
         else:
@@ -705,19 +876,10 @@ class ExportSomeData(Operator, ExportHelper):
     # to the class instance from the operator settings before calling.
     compression: BoolProperty(
         name="Enable Compression",
-        description="(not working, dont enable lol)",
-        default=False,
+        description="Currently only compresses Transform tracks",
+        default=True,
     )
 
-    type: EnumProperty(
-        name="Example Enum",
-        description="Choose between two items",
-        items=(
-            ('OPT_A', "First Option", "Description one"),
-            ('OPT_B', "Second Option", "Description two"),
-        ),
-        default='OPT_A',
-    )
 
     def execute(self, context):
         return export_nuanmb_main(context, self.filepath, self.compression)
