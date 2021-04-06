@@ -1,9 +1,6 @@
 # blender_io_nuanmb
 A set of blender scripts to import and export smash animations
 
-Early alpha release so that people who want to avoid the Quaternion-Rotation bug in StudioSB output have an option.
-Or if u want to make simple camera track edits.
-
 # PreRequisites
 1. The model.numdlb importer script (pls only install the .NUMDLB character MODEL importer) https://gitlab.com/Worldblender/io_scene_numdlb
 
@@ -33,7 +30,6 @@ Or if u want to make simple camera track edits.
 6. Preview animations with helper bone influence
 
 # Current Limitations
-1. No compression (Currently working on this for 1.0 release)
 2. Material Track Keyframes not properly imported
 3. Camera Track FOV can't be properly keyframed
 4. Camera Track FOV preview is only approximately correct if u dont change it
