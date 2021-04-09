@@ -836,6 +836,7 @@ def export_nuanmb_main(context, filepath, compression):
     groups = []
     
     if (context.active_object.type == 'CAMERA'):
+        compression = False # Smash Camera Anims are not compressed
         groups = gather_camera_groups(context)
     else:
         groups = gather_groups(context)
