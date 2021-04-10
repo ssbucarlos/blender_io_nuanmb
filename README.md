@@ -1,5 +1,5 @@
 # blender_io_nuanmb
-A set of blender scripts to import and export smash animations
+A set of blender scripts to import and export smash animations. Contains a modified version of the .nuanmb importer script from https://gitlab.com/Worldblender/io_scene_numdlb , these modifications are to enable importing of camera animations and also to keyframe materials.
 
 # PreRequisites
 1. The model.numdlb importer script (pls only install the .NUMDLB character MODEL importer) https://gitlab.com/Worldblender/io_scene_numdlb
