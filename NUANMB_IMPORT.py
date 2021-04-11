@@ -237,14 +237,14 @@ def readAnimations(ao):
             ao.seek(track.dataOffset, 0)
             # Collect the actual data pertaining to every node
             if ((track.flags & 0xff00) == AnimTrackFlags.Constant.value or (track.flags & 0xff00) == AnimTrackFlags.ConstTransform.value):
-                print("readAnimations: Const or Const Transform")
+                #print("readAnimations: Const or Const Transform")
                 readDirectData(ao, track)
             if ((track.flags & 0xff00) == AnimTrackFlags.Direct.value):
-                print("readAnimations: Direct")
+                #print("readAnimations: Direct")
                 for t in range(track.frameCount):
                     readDirectData(ao, track)
             if ((track.flags & 0xff00) == AnimTrackFlags.Compressed.value):
-                print("readAnimations: Compressed")
+                #print("readAnimations: Compressed")
                 readCompressedData(ao, track)
             #print(track.name + " | " + AnimType(ag[0]).name)
             #for id, frame in enumerate(track.animations):
@@ -420,14 +420,14 @@ def readCompressedData(aq, track):
             Count = struct.unpack('<L', aq.read(4))[0]; aq.seek(0x04, 1)
             aci = AnimCompressedItem(Start, End, Count)
             acj.append(aci)
-        #print(acj)
+        print(acj)
 
         aq.seek(track.dataOffset + ach.defaultDataOffset, 0)
         values = []
         # Copy default values
         for c in range(4):
             values.append(struct.unpack('<f', aq.read(4))[0])
-
+        print("Values after default copy = " + str(values))
         aq.seek(track.dataOffset + ach.compressedDataOffset, 0)
         for f in range(ach.frameCount):
             for itemIndex in range(len(acj)):
@@ -441,15 +441,15 @@ def readCompressedData(aq, track):
                 scale = 0
                 for k in range(valueBitCount):
                     scale = scale | (0x1 << k)
-
+            
                 frameValue = lerp(item.start, item.end, 0, 1, value / float(scale))
                 if frameValue == float('NaN'):
                     frameValue = 0
-
+                print("Frame{%s}, itemIndex{%s}, frameValue{%s}" % (str(f), str(itemIndex), str(frameValue)))
                 values[itemIndex] = frameValue
-
-            track.animations.append(values)
-
+                print("Frame{%s}, values[itemIndex] = %s" % (str(f), str(values[itemIndex])))
+            track.animations.append(values[:]) #Gotta append a copy by using [:], or else a reference will get appended and all values of the list will be the last ones
+        print(track.animations)
 
 # This function deals with all of the Blender-camera-specific operations
 def importCamera(context):
@@ -596,10 +596,11 @@ def importAnimations(context, read_transform, read_material, read_visibility, re
             for frame in range(int(FrameCount) + 1):
                 # Structure of this dict is: {bone name, transformation matrix}; is cleared on every frame
                 tfmArray = {}
-                print("Track frame # " + str(frame) + ", type " + AnimType.Transform.name)
+                #print("Track frame # " + str(frame) + ", type " + AnimType.Transform.name)
                 for track in ag[1]:
                     if (frame < track.frameCount):
                         # Set up a matrix that can set position, rotation, and scale all at once
+                        #print("Track Name = " + str(track.name) + " ")
                         qr = mathutils.Quaternion(track.animations[frame][1].wxyz)
                         pm = mathutils.Matrix.Translation(track.animations[frame][0][:3]) # Position matrix
                         rm = mathutils.Matrix.Rotation(qr.angle, 4, qr.axis) # Rotation matrix
@@ -687,8 +688,8 @@ def importAnimations(context, read_transform, read_material, read_visibility, re
         elif (read_visibility and ag[0] == AnimType.Visibility.value):
             for track in ag[1]:
                 for vframe, trackData in enumerate(track.animations):
-                    print("Track frame # " + str(vframe + 1) + ", type " + AnimType.Visibility.name + " for " + track.name)
-                    print("Value: " + str(trackData))
+                    #print("Track frame # " + str(vframe + 1) + ", type " + AnimType.Visibility.name + " for " + track.name)
+                    #print("Value: " + str(trackData))
 
                     # All meshes are visible by default, so search the object list and hide objects whose visibility is False
                     for target in bpy.data.objects:
