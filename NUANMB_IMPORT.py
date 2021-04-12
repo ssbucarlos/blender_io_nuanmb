@@ -717,7 +717,73 @@ def importAnimations(context, read_transform, read_material, read_visibility, re
     # Clear any unkeyed poses
     for bone in obj.pose.bones:
         bone.matrix_basis.identity()
+    
+    # Setup Shader Nodes
+    setup_shader_nodes(context, ag)
+    
+def setup_shader_nodes(context, ag):
+    for ag in AnimGroups.items():
+        if ag[0] != AnimType.Material.value:
+            continue
+        for track in ag[1]:
+            if 'Eye' in track.name and track.type == 'CustomVector31':
+                setup_eye_shader_node(track.name, track.type)
 
+def setup_eye_shader_node(eyeName, customVectorName):
+    
+    mat = bpy.data.materials.get(eyeName)
+    if not mat:
+        print("Material %s not found!" % (eyeName))
+        return
+    
+    #Creation
+    nodes = mat.node_tree.nodes
+    
+    textureNode = nodes["Image Texture.001"]
+    
+    uvMapNode = nodes["UV Map.001"]
+
+    mappingNode = nodes.new("ShaderNodeMapping")
+    mappingNode.vector_type = "TEXTURE"
+
+    combineXYZNode = nodes.new("ShaderNodeCombineXYZ")
+
+    xValueNode = nodes.new("ShaderNodeValue")
+    xValueNode.name = "X"
+    
+    yValueNode = nodes.new("ShaderNodeValue")
+    yValueNode.name = "Y"
+    
+    #Connections
+    links = mat.node_tree.links
+    
+    links.remove(uvMapNode.outputs['UV'].links[0])
+    
+    links.new(textureNode.inputs['Vector'], mappingNode.outputs['Vector'])
+    
+    links.new(mappingNode.inputs['Vector'], uvMapNode.outputs['UV'])
+    links.new(mappingNode.inputs['Location'], combineXYZNode.outputs['Vector'])
+    
+    links.new(combineXYZNode.inputs['X'], xValueNode.outputs['Value'])
+    links.new(combineXYZNode.inputs['Y'], yValueNode.outputs['Value'])
+    
+    
+    #Add Drivers
+    for vn in [xValueNode, yValueNode]:
+        d = vn.outputs['Value'].driver_add("default_value")
+        var = d.driver.variables.new()
+        var.name = "var"
+        target = var.targets[0]
+        target.id = bpy.context.object
+        if vn.name == "X":
+            target.data_path = '["%s:%s"][2]' % (eyeName, customVectorName)
+        else:
+            target.data_path = '["%s:%s"][3]' % (eyeName, customVectorName)
+        d.driver.expression = "%s" % var.name
+        
+    
+    
+    
 # ==== Import OPERATOR ====
 from bpy_extras.io_utils import (ImportHelper)
 
