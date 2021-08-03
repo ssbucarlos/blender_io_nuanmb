@@ -704,16 +704,34 @@ def gather_camera_groups(context):
     groups.append(cg)
     return groups
     
-def gather_groups(context): 
+def gather_groups(context, exportSplit): 
     #Blender Setup
     obj = bpy.context.object
     sce = bpy.context.scene
+    
     #Groups Setup
     groups = []
+    
     #Make Transform group
     tg = Group()
     tg.nodesAnimType = AnimType.Transform.value
-    for b in obj.pose.bones:
+    
+    bones = []
+    if exportSplit:
+        fcurves = obj.animation_data.action.fcurves
+        for curve in fcurves:
+            if not curve.group.select:
+                continue
+            bn = curve.data_path.split('"')[1]
+            pb = obj.pose.bones.get(bn)
+            if pb:
+                if pb not in bones:
+                    bones.append(pb)
+            
+    else:
+        bones = obj.pose.bones 
+    
+    for b in bones:
         if "_eff" in b.name:
             continue
         if "H_" in b.name:
@@ -722,6 +740,7 @@ def gather_groups(context):
             continue
         if "_null" in b.name:
             continue
+
         tn = Node() #Transform Node
         tn.name = b.name
         nat = tn.nodeAnimTrack
@@ -758,17 +777,31 @@ def gather_groups(context):
         tg.nodes.append(tn)
     tg.nodes.sort(key = lambda node: node.name)
     groups.append(tg)
+    
     #Make Visibility Group
     vg = Group()
     vg.nodesAnimType = AnimType.Visibility.value
-    allVisNames = [] #Keep track of completed visnames, only want to do one of each
+    
+    visMeshes = []
     for child in obj.children:
         if("_VIS_O_" not in child.name):
-            continue    
-        visName = child.name.split("_VIS_O_")[0]
-        if visName in allVisNames:
             continue
-        allVisNames.append(visName)
+        
+        if exportSplit:
+            curveSelected = False
+            for curve in child.animation_data.action.fcurves:
+                if curve.group.select:
+                    curveSelected = True
+            if curveSelected == False:
+                continue
+        
+        if child in visMeshes:
+            continue
+        
+        visMeshes.append(child)
+                   
+    for vm in visMeshes:
+        visName = vm.name.split("_VIS_O_")[0]
         n = Node()
         n.name = visName
         nat = n.nodeAnimTrack
@@ -776,7 +809,7 @@ def gather_groups(context):
         nat.type = "Visibility"
         for f in range(sce.frame_start, sce.frame_end):
             sce.frame_set(f)
-            isVisible = not child.hide_render
+            isVisible = not vm.hide_render
             nat.animationTrack.append(isVisible)
         n.nodeAnimTrack = nat
         vg.nodes.append(n)
@@ -786,6 +819,7 @@ def gather_groups(context):
     #Make Material Group
     mg = Group()
     mg.nodesAnimType = AnimType.Material.value
+    
     #Make Material Nodes and subnodes
     nodeNames = [] 
     for k, v in obj.items(): #Key, Value. Key Format for materials should be nat.name:nat.type
@@ -825,10 +859,9 @@ def gather_groups(context):
         
     groups.append(mg)
             
-    
     return groups
     
-def export_nuanmb_main(context, filepath, compression):
+def export_nuanmb_main(context, filepath, compression, exportSplit):
  
     print(str(filepath))
     fileName = os.path.basename(filepath)
@@ -839,7 +872,7 @@ def export_nuanmb_main(context, filepath, compression):
         compression = False # Smash Camera Anims are not compressed
         groups = gather_camera_groups(context)
     else:
-        groups = gather_groups(context)
+        groups = gather_groups(context, exportSplit)
     
     animBuffer = make_anim_buffer(context, groups, compression)
     
@@ -881,10 +914,22 @@ class ExportSomeData(Operator, ExportHelper):
         default=True,
     )
 
-
+    splitExport: BoolProperty(
+        name="Split Export",
+        description="Only Exports the selected animation groups (groups are green)",
+        default=False,
+    )
+    
+    
     def execute(self, context):
-        return export_nuanmb_main(context, self.filepath, self.compression)
-
+        return export_nuanmb_main(context, self.filepath, self.compression, self.splitExport)
+    
+    @classmethod
+    def poll(self, context):
+        if context.active_object is not None:
+            if ((context.active_object.type == 'CAMERA') or (context.active_object.type == 'ARMATURE')):
+                return True
+        return False
 
 # Only needed if you want to add into a dynamic menu
 def menu_func_export(self, context):
