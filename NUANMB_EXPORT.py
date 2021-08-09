@@ -729,136 +729,167 @@ def gather_groups(context, exportSplit):
                     bones.append(pb)
             
     else:
-        bones = obj.pose.bones 
-    
-    for b in bones:
-        if "_eff" in b.name:
-            continue
-        if "H_" in b.name:
-            continue
-        if "_offset" in b.name:
-            continue
-        if "_null" in b.name:
-            continue
+        for bone in obj.pose.bones:
+            bones.append(bone)
 
-        tn = Node() #Transform Node
-        tn.name = b.name
+    # Re-Write, current theory is that updating frames is expensive, so here will only go through all frames once.
+    ignore_markers = ['_eff', 'H_', '_offset', '_null']
+
+    # Transform Group Prep
+    for bone in bones: 
+        if any(ss in bone.name for ss in ignore_markers):
+            bones.remove(bone)
+
+    bone_node_dict = {} # Key is the bone name, Value is the transform node
+    for bone in bones:
+        tn = Node()
+        tn.name = bone.name
         nat = tn.nodeAnimTrack
         nat.flags |= AnimTrackFlags.Transform.value
         nat.type = "Transform"
-        pfq = 0 # Previous Frame Quaternion
-        for f in range(sce.frame_start, sce.frame_end):
-            sce.frame_set(f)
-            if not b.parent:
-                t = b.matrix.to_translation()
-                r = b.matrix.to_quaternion()
-                if f != sce.frame_start: 
-                    if pfq.dot(r) < 0:
-                        r.negate()  #fix for quaternion interpolation
-                s = b.matrix.to_scale()
-                nat.animationTrack.append([ [s[0], s[1], s[2], 1],
-                                            [r[1], r[2], r[3], r[0]],
-                                            [t[0], t[1], t[2], 1] ])
-                pfq = r.copy()
-            else:
-                pmi = b.parent.matrix.inverted()
-                rm = pmi @ b.matrix #"Relative Matrix", might rename this later
-                t = rm.to_translation()
-                r = rm.to_quaternion()
-                if f != sce.frame_start:
-                    if pfq.dot(r) < 0:
-                        r.negate()
-                s = rm.to_scale()
-                nat.animationTrack.append([ [s[0], s[1], s[2], 1],
-                                            [r[1], r[2], r[3], r[0]],
-                                            [t[0], t[1], t[2], 1] ])
-                pfq = r.copy()
-        tn.nodeAnimTrack = nat
-        tg.nodes.append(tn)
-    tg.nodes.sort(key = lambda node: node.name)
-    groups.append(tg)
-    
-    #Make Visibility Group
-    vg = Group()
-    vg.nodesAnimType = AnimType.Visibility.value
-    
-    visMeshes = []
+        bone_node_dict[bone.name] = tn
+
+    # Visibility Group Prep
+    vis_group = Group()
+    vis_group.nodesAnimType = AnimType.Visibility.value
+
+    vis_markers = ['_VIS_O']
+    vis_meshes = []
     for child in obj.children:
-        if("_VIS_O_" not in child.name):
+        if not any(ss in child.name for ss in vis_markers):
             continue
-        
         if exportSplit:
-            curveSelected = False
+            curve_selected = False
             for curve in child.animation_data.action.fcurves:
                 if curve.group.select:
-                    curveSelected = True
-            if curveSelected == False:
+                    curve_selected = True
+            if curve_selected == False:
                 continue
-        
-        if child in visMeshes:
+        if child in vis_meshes:
             continue
-        
-        visMeshes.append(child)
-                   
-    for vm in visMeshes:
-        visName = vm.name.split("_VIS_O_")[0]
-        n = Node()
-        n.name = visName
-        nat = n.nodeAnimTrack
+        vis_meshes.append(child)
+    
+    vis_mesh_node_dict = {} #Key is vis_mesh name, Value is the vis node
+    for vis_mesh in vis_meshes:
+        vis_name = None
+        for vis_marker in vis_markers:
+            if vis_marker in vis_mesh.name:
+                vis_name = vis_mesh.name.split(vis_marker)[0]
+        vis_node = Node()
+        vis_node.name = vis_name
+        nat = vis_node.nodeAnimTrack
         nat.flags |= AnimTrackFlags.Boolean.value
-        nat.type = "Visibility"
-        for f in range(sce.frame_start, sce.frame_end):
-            sce.frame_set(f)
-            isVisible = not vm.hide_render
-            nat.animationTrack.append(isVisible)
-        n.nodeAnimTrack = nat
-        vg.nodes.append(n)
-    vg.nodes.sort(key = lambda node: node.name)
-    groups.append(vg)
+        nat.type = 'Visibility'
+        vis_mesh_node_dict[vis_mesh] = vis_node
+
     
-    #Make Material Group
-    mg = Group()
-    mg.nodesAnimType = AnimType.Material.value
-    
-    #Make Material Nodes and subnodes
-    nodeNames = [] 
-    for k, v in obj.items(): #Key, Value. Key Format for materials should be nat.name:nat.type
-        if ":" not in k:
+    # Material Group Prep
+    mat_group = Group()
+    mat_group.nodesAnimType = AnimType.Material.value
+
+    mat_name_main_node_dict = {} # Key is mat name, Value is the main node (Material nodes are wierd and have 'subnodes')
+    mat_prop_sub_node_dict = {} # Key is mat prop, Value is the sub node
+    main_node_sub_nodes_dict = {} # Key is main node, Value is the list of sub nodes
+    sub_node_blender_property_dict = {}
+    for key, value in obj.items(): #Key Format for materials should be nat.name:nat.type
+        if ':' not in key:
             continue
-        nodeName = k.split(":")[0]
-        if nodeName not in nodeNames:
-            nodeNames.append(nodeName)
-            node = Node()
-            node.name = nodeName
-            mg.nodes.append(node)
-        msn = Node() #MaterialSubNode
-        nodeType = k.split(":")[1]
-        nat = msn.nodeAnimTrack
-        if "Boolean" in nodeType:
+        mat_name = key.split(':')[0] # e.g. 'EyeL'
+        mat_property = key.split(':')[1] # e.g. 'CustomVector6'
+
+        if mat_name not in mat_name_main_node_dict.keys():
+            mat_main_node = Node()
+            mat_main_node.name = mat_name
+            mat_name_main_node_dict[mat_name] = mat_main_node
+        
+        prop_sub_node = Node()
+        nat = prop_sub_node.nodeAnimTrack
+        if 'Boolean' in mat_property:
             nat.flags |= AnimTrackFlags.Boolean.value
-        elif "Float" in nodeType:
+        elif 'Float' in mat_property:
             nat.flags |= AnimTrackFlags.Float.value
-        elif "Vector" in nodeType:
+        elif 'Vector' in mat_property:
             nat.flags |= AnimTrackFlags.Vector.value
         else:
-            print("Unknown nodeType: " + str(nodeType)); 
+            print('Unknown Material Property Type %s' % (mat_property))
             continue
-        nat.type = nodeType
-        if "Vector" in nodeType:
-            for f in range(sce.frame_start, sce.frame_end):
-                sce.frame_set(f)
-                nat.animationTrack.append([ v[0], v[1], v[2], v[3] ])
-        else:      
-            for f in range(sce.frame_start, sce.frame_end):
-                sce.frame_set(f)
-                nat.animationTrack.append(v)
-        msn.nodeAnimTrack = nat
-        for node in mg.nodes:
-            if node.name == nodeName:
-                node.materialSubNodes.append(msn)
+        nat.type = mat_property
+        mat_prop_sub_node_dict[mat_property] = prop_sub_node
+
+        main_node = mat_name_main_node_dict[mat_name]
+        if main_node not in main_node_sub_nodes_dict:
+            main_node_sub_nodes_dict[main_node] = []
+        sub_node_list = main_node_sub_nodes_dict[main_node]
+        sub_node_list.append(prop_sub_node)
+        sub_node_blender_property_dict[prop_sub_node] = key
+
+
         
-    groups.append(mg)
-            
+    # Go through each frame, and fill out the nodes for each group
+    for frame in range(sce.frame_start, sce.frame_end):
+        sce.frame_set(frame)
+        for bone in bones:
+            tn = bone_node_dict[bone.name]
+            trans = None
+            rot = None
+            scale = None
+            nat = tn.nodeAnimTrack
+            if not bone.parent:
+                trans = bone.matrix.to_translation()
+                rot = bone.matrix.to_quaternion()
+                scale = bone.matrix.to_scale()
+            else:
+                pmi = bone.parent.matrix.inverted()
+                rm = pmi @ bone.matrix
+                trans = rm.to_translation()
+                rot = rm.to_quaternion()
+                scale = rm.to_scale()
+            if frame != sce.frame_start:
+                previous_frame_smash_quaternion = nat.animationTrack[frame - sce.frame_start - 1][1][:]
+                p = previous_frame_smash_quaternion
+                previous_frame_blender_quaternion = mathutils.Quaternion([p[3],p[0],p[1],p[2]])
+                if previous_frame_blender_quaternion.dot(rot) < 0:
+                    rot.negate()
+            nat.animationTrack.append([ [scale[0], scale[1], scale[2], 1],
+                                        [rot[1], rot[2], rot[3], rot[0]],
+                                        [trans[0], trans[1], trans[2], 1] ])
+        
+        for vis_mesh in vis_meshes:
+            vis_node = vis_mesh_node_dict[vis_mesh]
+            nat = vis_node.nodeAnimTrack
+            is_visible = not vis_mesh.hide_render
+            nat.animationTrack.append(is_visible)
+
+        for main_node, sub_node_list in main_node_sub_nodes_dict.items():
+            for sub_node in sub_node_list:
+                nat = sub_node.nodeAnimTrack
+                blender_property = obj[sub_node_blender_property_dict[sub_node]]
+                bp = blender_property
+                if 'Vector' in nat.type:
+                    nat.animationTrack.append([bp[0], bp[1], bp[2], bp[3]])
+                else:
+                    nat.animationTrack.append(bp)
+
+    # Add the Nodes to their Group and then add the groups to the list.
+    for bone_node in bone_node_dict:
+        tg.nodes.append(bone_node_dict[bone_node])
+    tg.nodes.sort(key = lambda node: node.name)
+
+    for vis_mesh in vis_mesh_node_dict:
+        vis_group.nodes.append(vis_mesh_node_dict[vis_mesh])
+    vis_group.nodes.sort(key = lambda node: node.name)
+
+    for main_node, sub_node_list in main_node_sub_nodes_dict.items():
+        for sub_node in sub_node_list:
+            main_node.materialSubNodes.append(sub_node)
+
+    for main_node in main_node_sub_nodes_dict.keys():
+        mat_group.nodes.append(main_node)
+    
+    groups.append(tg)
+    groups.append(vis_group)
+    groups.append(mat_group)
+
     return groups
     
 def export_nuanmb_main(context, filepath, compression, exportSplit):
