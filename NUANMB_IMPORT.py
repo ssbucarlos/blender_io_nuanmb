@@ -476,7 +476,7 @@ def importCamera(context):
     context.scene.frame_start = 1
     sm = action.pose_markers.new(AnimName + "-start")
     sm.frame = context.scene.frame_start
-    context.scene.frame_end = FrameCount + 1
+    context.scene.frame_end = FrameCount
     em = action.pose_markers.new(AnimName + "-end")
     em.frame = context.scene.frame_end
 
@@ -586,7 +586,7 @@ def importAnimations(context, read_transform, read_material, read_visibility, re
     context.scene.frame_start = 1
     sm = action.pose_markers.new(AnimName + "-start")
     sm.frame = context.scene.frame_start
-    context.scene.frame_end = FrameCount + 1
+    context.scene.frame_end = FrameCount
     em = action.pose_markers.new(AnimName + "-end")
     em.frame = context.scene.frame_end
 

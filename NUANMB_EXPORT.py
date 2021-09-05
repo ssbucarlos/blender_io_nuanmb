@@ -826,7 +826,7 @@ def gather_groups(context, exportSplit):
 
         
     # Go through each frame, and fill out the nodes for each group
-    for frame in range(sce.frame_start, sce.frame_end):
+    for frame in range(sce.frame_start, sce.frame_end + 1): # Range is not inclusive of the stop so need to add + 1
         sce.frame_set(frame)
         for bone in bones:
             tn = bone_node_dict[bone.name]
