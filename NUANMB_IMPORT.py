@@ -516,8 +516,14 @@ def importCamera(context):
                     # need to figure out conversion between smash FOV
                     # and convert that to Sensor Width and Focal Length
                     for anim_frame in track.animations:
+                        '''
                         cam["FOV"] = anim_frame
                         cam.keyframe_insert(data_path = '["FOV"]',
+                                            frame = blender_frame,
+                                            group = AnimName)
+                        '''
+                        cam.data.angle_y = anim_frame
+                        cam.data.keyframe_insert(data_path = 'lens',
                                             frame = blender_frame,
                                             group = AnimName)
                         blender_frame += 1
@@ -534,11 +540,11 @@ def importCamera(context):
     cam.parent = empty
     
     #Now change the camera object's camera data, such as FOV, Lens Type, etc...
-    cam.data.type       = "PERSP"
-    cam.data.angle      = math.radians(56.7)
-    cam.data.shift_y    = 0.060
+    #cam.data.type       = "PERSP"
+    #cam.data.angle      = math.radians(56.7)
+    #cam.data.shift_y    = 0.060
     cam.data.sensor_fit = "HORIZONTAL"
-       
+    cam.data.sensor_width = 40.4
     #Now change some scene data just incase they werent already set
     render = bpy.context.scene.render
     render.resolution_x   = 1920

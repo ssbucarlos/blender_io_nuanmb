@@ -679,7 +679,7 @@ def gather_camera_groups(context):
     cnat.type = "FieldOfView"
     for f in range(sce.frame_start, sce.frame_end):
         sce.frame_set(f)
-        cnat.animationTrack.append(c["FOV"]) #Todo: Figure out FOV conversion, dont hardcode this value
+        cnat.animationTrack.append(c.data.angle_y) #Todo: Figure out FOV conversion, dont hardcode this value
     csnFieldOfView.nodeAnimTrack = cnat
     
     #NearClip seems to be the same value in all investigated tracks
