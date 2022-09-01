@@ -1,3 +1,8 @@
+# DEPRECATED
+* This repo is now deprecated! 
+* Please use smash_ultimate_blender for importing/exporting models/animations!
+* This repo will be kept around for legacy version support, but the latest features + bug fixes will not be back ported here.
+* https://github.com/ssbucarlos/smash-ultimate-blender
 # blender_io_nuanmb
 A set of blender scripts to import and export smash animations. Contains a modified version of the .nuanmb importer script from https://gitlab.com/Worldblender/io_scene_numdlb , these modifications are to enable importing of camera animations and also to keyframe materials.
 
